@@ -19,15 +19,15 @@ class HomeScreen extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Node Management'),
           actions: [
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () => _logout(context),
             ),
           ],
-          bottom: const TabBar(
-            tabs: [
+          bottom: TabBar(
+            labelColor: Theme.of(context).colorScheme.primary,
+            tabs: const [
               Tab(
                 icon: Icon(Icons.sensors),
                 text: 'Nodes',
