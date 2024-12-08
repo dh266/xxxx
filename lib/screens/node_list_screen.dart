@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/node.dart';
 import '../services/node_service.dart';
 import '../screens/sensor_list_screen.dart';
+import 'login_screen.dart';
 
 class NodeListScreen extends StatefulWidget {
   const NodeListScreen({Key? key}) : super(key: key);
@@ -168,6 +169,13 @@ class _NodeListScreenState extends State<NodeListScreen> {
     );
   }
 
+  void _logout() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -177,6 +185,10 @@ class _NodeListScreenState extends State<NodeListScreen> {
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _showAddNodeDialog(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
           ),
         ],
       ),
