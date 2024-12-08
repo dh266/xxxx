@@ -1,12 +1,32 @@
 import 'package:flutter/material.dart';
 
-class ControlScreen extends StatelessWidget {
+class ControlScreen extends StatefulWidget {
   const ControlScreen({Key? key}) : super(key: key);
 
+  @override
+  State<ControlScreen> createState() => _ControlScreenState();
+}
+
+class _ControlScreenState extends State<ControlScreen> {
+  // Map to track the state of each device
+  final Map<String, bool> _deviceStates = {
+    'Device 1': false,
+    'Device 2': false,
+    'Device 3': false,
+  };
+
   void _handleDevicePress(BuildContext context, String device) {
-    // Add your device control logic here
+    setState(() {
+      _deviceStates[device] = !_deviceStates[device]!;
+    });
+    
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$device pressed')),
+      SnackBar(
+        content: Text(
+          '${device} turned ${_deviceStates[device]! ? 'ON' : 'OFF'}',
+        ),
+        duration: const Duration(seconds: 1),
+      ),
     );
   }
 
@@ -30,18 +50,17 @@ class ControlScreen extends StatelessWidget {
             crossAxisCount: 2,
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
-            children: [
-              _buildDeviceButton(context, 'Device 1'),
-              _buildDeviceButton(context, 'Device 2'),
-              _buildDeviceButton(context, 'Device 3'),
-            ],
+            children: _deviceStates.keys.map((deviceName) {
+              final bool isActive = _deviceStates[deviceName]!;
+              return _buildDeviceButton(context, deviceName, isActive);
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDeviceButton(BuildContext context, String deviceName) {
+  Widget _buildDeviceButton(BuildContext context, String deviceName, bool isActive) {
     return Card(
       elevation: 4,
       child: InkWell(
@@ -53,12 +72,26 @@ class ControlScreen extends StatelessWidget {
             Icon(
               Icons.power_settings_new,
               size: 48,
-              color: Theme.of(context).colorScheme.primary,
+              color: isActive 
+                ? Colors.green 
+                : Theme.of(context).colorScheme.primary.withOpacity(0.5),
             ),
             const SizedBox(height: 8),
             Text(
               deviceName,
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: isActive 
+                  ? Colors.green
+                  : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isActive ? 'ON' : 'OFF',
+              style: TextStyle(
+                color: isActive ? Colors.green : Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
