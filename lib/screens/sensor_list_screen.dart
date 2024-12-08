@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/sensor.dart';
 import '../services/sensor_service.dart';
+import '../services/mqttsub.dart';
 
 class SensorListScreen extends StatefulWidget {
   final int nodeId;
@@ -409,6 +410,63 @@ class _SensorListScreenState extends State<SensorListScreen> {
                                 ],
                               ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                            ),
+                          ),
+                          child: StreamBuilder<String>(
+                            stream: MQTTClientWrapper().getMessagesStream(sensor.id.toString()),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasData) {
+                                final value = double.tryParse(snapshot.data ?? '') ?? 0.0;
+                                final isInRange = value >= sensor.lowThreshold && value <= sensor.highThreshold;
+                                
+                                return Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Current Value:',
+                                          style: Theme.of(context).textTheme.bodyMedium,
+                                        ),
+                                        Text(
+                                          '$value ${sensor.unit}',
+                                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: isInRange ? Colors.green : Colors.red,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (!isInRange) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Value out of range!',
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Colors.red,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              }
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Text('Waiting for data...'),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
