@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:mqtt_client/mqtt_client.dart';
-import 'package:mqtt_client/mqtt_server_client.dart';
 import '../models/sensor.dart';
 import '../services/sensor_service.dart';
 
 class SensorListScreen extends StatefulWidget {
   final int nodeId;
-
   const SensorListScreen({Key? key, required this.nodeId}) : super(key: key);
 
   @override
@@ -15,136 +12,384 @@ class SensorListScreen extends StatefulWidget {
 
 class _SensorListScreenState extends State<SensorListScreen> {
   late Future<List<Sensor>> futureSensors;
-  late MqttServerClient client;
-  final Map<int, String> sensorValues = {}; // Map lưu giá trị của cảm biến
 
   @override
   void initState() {
     super.initState();
     futureSensors = fetchSensorsByNodeId(widget.nodeId);
-
-    // Chờ lấy danh sách sensors trước khi kết nối MQTT
-    futureSensors.then((sensors) {
-      _connectToMqtt(sensors);
-    });
   }
 
-  @override
-  void dispose() {
-    client.disconnect(); // Ngắt kết nối MQTT khi màn hình bị huỷ
-    super.dispose();
-  }
-
-  // Kết nối MQTT và subscribe vào các topic
-  Future<void> _connectToMqtt(List<Sensor> sensors) async {
-    client = MqttServerClient('192.168.43.28', '');
-    client.port = 1883;
-    client.keepAlivePeriod = 20;
-    client.logging(on: false);
-    client.onDisconnected = _onDisconnected;
-
-    final connMessage = MqttConnectMessage()
-        .withClientIdentifier(
-            'flutter_client_${DateTime.now().millisecondsSinceEpoch}')
-        .startClean()
-        .withWillQos(MqttQos.atMostOnce);
-
-    client.connectionMessage = connMessage;
-
+  Future<void> _deleteSensor(int id) async {
     try {
-      await client.connect();
-      if (client.connectionStatus?.state == MqttConnectionState.connected) {
-        debugPrint('MQTT connected');
-        _subscribeToSensors(sensors); // Chỉ subscribe khi kết nối thành công
-      } else {
-        debugPrint('MQTT connection failed');
-      }
+      await deleteSensor(id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sensor deleted successfully!')),
+      );
+      setState(() {
+        futureSensors = fetchSensorsByNodeId(widget.nodeId);
+      });
     } catch (e) {
-      debugPrint('MQTT connection error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete sensor: $e')),
+      );
     }
   }
 
-  // Xử lý ngắt kết nối MQTT
-  void _onDisconnected() {
-    debugPrint('MQTT disconnected');
+  Future<void> _showAddSensorDialog() async {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController descriptionController = TextEditingController();
+    final TextEditingController highThresholdController = TextEditingController();
+    final TextEditingController lowThresholdController = TextEditingController();
+    final TextEditingController sensorTypeController = TextEditingController();
+    final TextEditingController unitController = TextEditingController();
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Add New Sensor'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                ),
+                TextField(
+                  controller: highThresholdController,
+                  decoration: const InputDecoration(labelText: 'High Threshold'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: lowThresholdController,
+                  decoration: const InputDecoration(labelText: 'Low Threshold'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: sensorTypeController,
+                  decoration: const InputDecoration(labelText: 'Sensor Type'),
+                ),
+                TextField(
+                  controller: unitController,
+                  decoration: const InputDecoration(labelText: 'Unit'),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            FilledButton(
+              child: const Text('Add'),
+              onPressed: () async {
+                try {
+                  final newSensor = await createSensor(
+                    Sensor(
+                      id: 0, // Will be set by the server
+                      name: nameController.text,
+                      description: descriptionController.text,
+                      nodeId: widget.nodeId,
+                      highThreshold: double.parse(highThresholdController.text),
+                      lowThreshold: double.parse(lowThresholdController.text),
+                      sensorType: sensorTypeController.text,
+                      unit: unitController.text,
+                    ),
+                  );
+                  setState(() {
+                    futureSensors = fetchSensorsByNodeId(widget.nodeId);
+                  });
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Sensor "${newSensor.name}" created!')),
+                  );
+                } catch (e) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to create sensor: $e')),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
-  // Subscribe vào các topic của sensors
-  Future<void> _subscribeToSensors(List<Sensor> sensors) async {
-    for (var sensor in sensors) {
-      final topic = 'sensors/${sensor.id}';
-      client.subscribe(topic, MqttQos.atMostOnce);
-      debugPrint('Subscribed to topic: $topic');
-    }
+  Future<void> _editSensor(Sensor sensor) async {
+    final TextEditingController nameController = TextEditingController(text: sensor.name);
+    final TextEditingController descriptionController = TextEditingController(text: sensor.description);
+    final TextEditingController highThresholdController = TextEditingController(text: sensor.highThreshold.toString());
+    final TextEditingController lowThresholdController = TextEditingController(text: sensor.lowThreshold.toString());
+    final TextEditingController sensorTypeController = TextEditingController(text: sensor.sensorType);
+    final TextEditingController unitController = TextEditingController(text: sensor.unit);
 
-    client.updates?.listen((List<MqttReceivedMessage<MqttMessage?>>? messages) {
-      if (messages != null && messages.isNotEmpty) {
-        final recMessage = messages[0].payload as MqttPublishMessage;
-        final topic = messages[0].topic;
-
-        final payload = MqttPublishPayload.bytesToStringAsString(
-          recMessage.payload.message,
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Edit Sensor'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                ),
+                TextField(
+                  controller: highThresholdController,
+                  decoration: const InputDecoration(labelText: 'High Threshold'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: lowThresholdController,
+                  decoration: const InputDecoration(labelText: 'Low Threshold'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: sensorTypeController,
+                  decoration: const InputDecoration(labelText: 'Sensor Type'),
+                ),
+                TextField(
+                  controller: unitController,
+                  decoration: const InputDecoration(labelText: 'Unit'),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            FilledButton(
+              child: const Text('Save'),
+              onPressed: () async {
+                try {
+                  await updateSensor(
+                    sensor.id,
+                    Sensor(
+                      id: sensor.id,
+                      name: nameController.text,
+                      description: descriptionController.text,
+                      nodeId: widget.nodeId,
+                      highThreshold: double.parse(highThresholdController.text),
+                      lowThreshold: double.parse(lowThresholdController.text),
+                      sensorType: sensorTypeController.text,
+                      unit: unitController.text,
+                    ),
+                  );
+                  setState(() {
+                    futureSensors = fetchSensorsByNodeId(widget.nodeId);
+                  });
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Sensor "${sensor.name}" updated!')),
+                  );
+                } catch (e) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to update sensor: $e')),
+                  );
+                }
+              },
+            ),
+          ],
         );
+      },
+    );
+  }
 
-        final sensorId = int.tryParse(
-          topic.split('/').where((e) => e.isNotEmpty).last,
-        );
-
-        if (sensorId != null) {
-          setState(() {
-            sensorValues[sensorId] = payload; // Cập nhật giá trị
-          });
-          debugPrint('Sensor ID: $sensorId, Value: $payload');
-        } else {
-          debugPrint('Failed to parse sensor ID from topic: $topic');
-        }
-      }
-    });
+  void _showDeleteConfirmation(Sensor sensor) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Confirmation'),
+        content: Text('Are you sure you want to delete "${sensor.name}"?'),
+        actions: [
+          TextButton(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteSensor(sensor.id);
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Sensors for Node ${widget.nodeId}'),
+        title: const Text('Sensors'),
       ),
       body: FutureBuilder<List<Sensor>>(
         future: futureSensors,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
+          }
+          
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          final sensors = snapshot.data!;
+          if (sensors.isEmpty) {
             return Center(
-              child: Text(
-                'Error: ${snapshot.error}',
-                style: const TextStyle(color: Colors.red),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.sensors_off,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No sensors available',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                  ),
+                ],
               ),
             );
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            debugPrint('No sensors available for node: ${widget.nodeId}');
-            return const Center(child: Text('No sensors available.'));
-          } else {
-            final sensors = snapshot.data!;
-            return ListView.builder(
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              setState(() {
+                futureSensors = fetchSensorsByNodeId(widget.nodeId);
+              });
+            },
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
               itemCount: sensors.length,
               itemBuilder: (context, index) {
                 final sensor = sensors[index];
-                final value = sensorValues[sensor.id] ?? 'No data';
-                debugPrint('Rendering sensor: ${sensor.id}, Value: $value');
                 return Card(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: ListTile(
-                    title: Text('${sensor.name} (ID: ${sensor.id})'),
-                    subtitle: Text(
-                      'Value: $value${sensor.unit != null ? ' ${sensor.unit}' : ''}',
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.sensors,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    sensor.name,
+                                    style: Theme.of(context).textTheme.titleLarge,
+                                  ),
+                                  Text(
+                                    sensor.sensorType,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Colors.grey[600],
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuButton(
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit),
+                                      SizedBox(width: 8),
+                                      Text('Edit'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Delete',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _editSensor(sensor);
+                                } else if (value == 'delete') {
+                                  _showDeleteConfirmation(sensor);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        if (sensor.description.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            sensor.description,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Colors.grey[600],
+                                ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Range: ${sensor.lowThreshold} - ${sensor.highThreshold} ${sensor.unit}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 );
               },
-            );
-          }
+            ),
+          );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddSensorDialog,
+        child: const Icon(Icons.add),
       ),
     );
   }
