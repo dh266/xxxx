@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'node_list_screen.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -25,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const NodeListScreen()),
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
     } else {
       if (!mounted) return;

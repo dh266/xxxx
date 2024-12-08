@@ -179,15 +179,6 @@ class _NodeListScreenState extends State<NodeListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Node Management'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
-        ],
-      ),
       body: FutureBuilder<List<Node>>(
         future: futureNodes,
         builder: (context, snapshot) {
