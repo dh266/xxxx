@@ -312,7 +312,7 @@ class _SensorListScreenState extends State<SensorListScreen> {
                                     style: Theme.of(context).textTheme.titleLarge,
                                   ),
                                   Text(
-                                    sensor.sensorType,
+                                    'Type: ${sensor.sensorType}',
                                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                           color: Colors.grey[600],
                                         ),
@@ -368,15 +368,48 @@ class _SensorListScreenState extends State<SensorListScreen> {
                                 ),
                           ),
                         ],
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Range: ${sensor.lowThreshold} - ${sensor.highThreshold} ${sensor.unit}',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ],
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceVariant,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'High Threshold:',
+                                    style: Theme.of(context).textTheme.bodyMedium,
+                                  ),
+                                  Text(
+                                    '${sensor.highThreshold} ${sensor.unit}',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Low Threshold:',
+                                    style: Theme.of(context).textTheme.bodyMedium,
+                                  ),
+                                  Text(
+                                    '${sensor.lowThreshold} ${sensor.unit}',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
