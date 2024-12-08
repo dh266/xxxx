@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/sensor.dart';
 import '../services/sensor_service.dart';
 import '../services/mqttsub.dart';
+import 'package:provider/provider.dart';
 
 class SensorListScreen extends StatefulWidget {
   final int nodeId;
@@ -423,7 +424,7 @@ class _SensorListScreenState extends State<SensorListScreen> {
                             ),
                           ),
                           child: StreamBuilder<String>(
-                            stream: MQTTClientWrapper().getMessagesStream(sensor.id.toString()),
+                            stream: context.read<MQTTClientWrapper>().getMessagesStream(sensor.id.toString()),
                             builder: (context, snapshot) {
                               if (snapshot.hasData) {
                                 final value = double.tryParse(snapshot.data ?? '') ?? 0.0;

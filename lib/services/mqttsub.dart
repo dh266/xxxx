@@ -1,66 +1,53 @@
-import 'package:mqtt_client/mqtt_client.dart';
 import 'dart:async';
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:mqtt_client/mqtt_server_client.dart';
 
-class MqttSubscriber {
-  late MqttClient client;
+class MQTTClientWrapper {
+  final Map<String, StreamController<String>> _controllers = {};
+  MqttServerClient? _client;
+  bool _isConnected = false;
 
-  late String broker = '192.168.43.28';
-  late String topic;
-  late String clientId = 'flutter_client';
-  late int port = 1883;
-
-  MqttSubscriber(
-      {required this.broker, required this.clientId, required this.topic});
-
-  // Hàm kết nối tới broker MQTT
   Future<void> connect() async {
-    client = MqttClient.withPort(broker, clientId, port);
+    if (_isConnected) return;
 
-    // Cấu hình kết nối
-    client.logging(on: true); // Bật logging để theo dõi kết nối
-    client.keepAlivePeriod = 60; // Giữ kết nối với broker trong 60 giây
-    client.onDisconnected = onDisconnected; // Xử lý khi kết nối bị ngắt
+    _client = MqttServerClient('your.mqtt.broker.address', 'flutter_client');
+    _client!.port = 1883; // Your MQTT broker port
 
     try {
-      print('Đang kết nối tới broker...');
-      await client.connect();
-      if (client.connectionStatus!.state == MqttConnectionState.connected) {
-        print('Kết nối thành công!');
-      } else {
-        print('Kết nối thất bại với trạng thái: ${client.connectionStatus}');
-      }
+      await _client!.connect();
+      _isConnected = true;
     } catch (e) {
-      print('Kết nối không thành công: $e');
-      client.disconnect();
+      print('Exception: $e');
+      _client!.disconnect();
     }
   }
 
-  // Hàm subscribe vào topic và trả về messages nhận được
-  Future<void> subscribeAndListen() async {
-    // Đăng ký vào topic
-    print('Đang subscribe vào topic: $topic');
-    client.subscribe(topic, MqttQos.atMostOnce);
-
-    // Lắng nghe các tin nhắn nhận được từ topic đã đăng ký
-    client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
-      final MqttPublishMessage message =
-          messages[0].payload as MqttPublishMessage;
-      final payload =
-          MqttPublishPayload.bytesToStringAsString(message.payload.message);
-
-      // In ra tin nhắn nhận được
-      print('Nhận tin nhắn từ topic "${messages[0].topic}": $payload');
-    });
+  void disconnect() {
+    _client?.disconnect();
+    _isConnected = false;
+    for (var controller in _controllers.values) {
+      controller.close();
+    }
+    _controllers.clear();
   }
 
-  // Hàm xử lý khi mất kết nối
-  void onDisconnected() {
-    print('Đã bị mất kết nối với broker');
-  }
-
-  // Hàm đóng kết nối với broker
-  Future<void> disconnect() async {
-    print('Đang ngắt kết nối với broker...');
-    client.disconnect();
+  Stream<String> getMessagesStream(String sensorId) {
+    if (!_controllers.containsKey(sensorId)) {
+      _controllers[sensorId] = StreamController<String>.broadcast();
+      
+      final topic = 'sensors/$sensorId/data';
+      _client?.subscribe(topic, MqttQos.atLeastOnce);
+      
+      _client?.updates?.listen((List<MqttReceivedMessage<MqttMessage>> c) {
+        final MqttPublishMessage message = c[0].payload as MqttPublishMessage;
+        final payload = MqttPublishPayload.bytesToStringAsString(message.payload.message);
+        
+        if (c[0].topic == topic) {
+          _controllers[sensorId]?.add(payload);
+        }
+      });
+    }
+    
+    return _controllers[sensorId]!.stream;
   }
 }
